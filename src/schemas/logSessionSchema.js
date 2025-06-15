@@ -8,8 +8,8 @@ export const logSessionSchema = z.object({
     .refine((val) => !isNaN(parseInt(val)), "Please enter a valid number")
     .refine((val) => {
       const num = parseInt(val);
-      return num >= 1;
-    }, "Duration must be at least 1 minute")
+      return num >= 5;
+    }, "Duration must be at least 5 minutes")
     .refine((val) => {
       const num = parseInt(val);
       return num <= 1440;

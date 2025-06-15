@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -23,17 +23,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ArrowLeft, CalendarIcon } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
-import {
-  getCurrentDate,
-  formatDate,
-  isValidDate,
-  dateToYYYYMMDD,
-} from "@/utils/dateUtils";
+import { ArrowLeft, CalendarIcon, AlertCircle } from "lucide-react";
 import { FALLBACK_DEFAULT_SESSION_DURATION } from "@/constants/settingsConstants";
+import ValidationAlert from "./ValidationAlert";
+import { useLogTimeView } from "@/hooks/useLogTimeView";
+import { formatDate, isValidDate, dateToYYYYMMDD } from "@/utils/dateUtils";
 
-const LogSessionDatePicker = ({ value, onChange }) => {
+const LogSessionDatePicker = ({ value, onChange, error, onBlur }) => {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(value ? new Date(value) : new Date());
   const [month, setMonth] = useState(date);
@@ -71,8 +67,11 @@ const LogSessionDatePicker = ({ value, onChange }) => {
           id="date"
           value={inputValue}
           placeholder="June 01, 2025"
-          className="bg-background pr-10"
+          className={`bg-background pr-10 ${
+            error ? "border-red-500 focus:border-red-500" : ""
+          }`}
           onChange={handleInputChange}
+          onBlur={onBlur}
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") {
               e.preventDefault();
@@ -108,68 +107,39 @@ const LogSessionDatePicker = ({ value, onChange }) => {
           </PopoverContent>
         </Popover>
       </div>
+      {error && (
+        <div className="flex items-center gap-2 text-sm text-red-500">
+          <AlertCircle className="size-4" />
+          <span>{error}</span>
+        </div>
+      )}
     </div>
   );
 };
 
 const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
-  const { skillId } = useParams();
-  const navigate = useNavigate();
-
-  const selectedSkill = skills.find((s) => s.id === skillId);
-  const skillDefaultDuration =
-    selectedSkill?.settings?.defaultSessionDuration || defaultDuration;
-
-  const [logForm, setLogForm] = useState({
-    skillId: skillId || "",
-    duration: skillDefaultDuration,
-    date: getCurrentDate(),
-    notes: "",
-  });
-
-  // Update form when skillId changes (e.g., when navigating from different skills)
-  useEffect(() => {
-    if (skillId) {
-      const skill = skills.find((s) => s.id === skillId);
-      const skillDefaultDuration =
-        skill?.settings?.defaultSessionDuration || defaultDuration;
-      setLogForm((prev) => ({
-        ...prev,
-        skillId,
-        duration: skillDefaultDuration,
-      }));
-    }
-  }, [skillId, skills, defaultDuration]);
-
-  const handleSkillChange = (value) => {
-    setLogForm((prev) => ({ ...prev, skillId: value }));
-
-    // Navigate to the skill-specific route when a skill is selected
-    if (value) {
-      navigate(`/log-time/${value}`);
-    } else {
-      navigate("/log-time");
-    }
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!logForm.skillId || !logForm.duration) return;
-
-    onLogSession(logForm);
-    setLogForm({
-      skillId: skillId || "",
-      duration: "",
-      date: getCurrentDate(),
-      notes: "",
-    });
-    navigate("/");
-  };
+  const {
+    logForm,
+    errors,
+    isSubmitting,
+    alertMessage,
+    alertType,
+    selectedSkill,
+    isFormValid,
+    notesCharCount,
+    maxNotesLength,
+    handleFieldChange,
+    handleFieldBlur,
+    handleSkillChange,
+    handleSubmit,
+    handleCancel,
+    setAlertMessage,
+  } = useLogTimeView({ skills, onLogSession, defaultDuration });
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-md">
       <div className="flex items-center gap-3 mb-6">
-        <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
+        <Button variant="ghost" size="sm" onClick={handleCancel}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
@@ -191,8 +161,18 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="skill">Skill</Label>
-              <Select value={logForm.skillId} onValueChange={handleSkillChange}>
-                <SelectTrigger className="w-full">
+              <Select
+                value={logForm.skillId}
+                onValueChange={handleSkillChange}
+                onOpenChange={(open) => {
+                  if (!open) handleFieldBlur("skillId");
+                }}
+              >
+                <SelectTrigger
+                  className={`w-full ${
+                    errors.skillId ? "border-red-500 focus:border-red-500" : ""
+                  }`}
+                >
                   <SelectValue placeholder="Select a skill" />
                 </SelectTrigger>
                 <SelectContent>
@@ -203,6 +183,12 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
                   ))}
                 </SelectContent>
               </Select>
+              {errors.skillId && (
+                <div className="flex items-center gap-2 text-sm text-red-500">
+                  <AlertCircle className="size-4" />
+                  <span>{errors.skillId}</span>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -212,52 +198,83 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
                 type="number"
                 placeholder={`e.g., ${FALLBACK_DEFAULT_SESSION_DURATION}`}
                 value={logForm.duration}
-                onChange={(e) =>
-                  setLogForm({ ...logForm, duration: e.target.value })
+                onChange={(e) => handleFieldChange("duration", e.target.value)}
+                onBlur={() => handleFieldBlur("duration")}
+                className={
+                  errors.duration ? "border-red-500 focus:border-red-500" : ""
                 }
-                min="1"
+                min="5"
                 max="1440"
               />
+              {errors.duration && (
+                <div className="flex items-center gap-2 text-sm text-red-500">
+                  <AlertCircle className="size-4" />
+                  <span>{errors.duration}</span>
+                </div>
+              )}
             </div>
 
             <LogSessionDatePicker
               value={logForm.date}
-              onChange={(date) => setLogForm({ ...logForm, date })}
+              onChange={(date) => handleFieldChange("date", date)}
+              onBlur={() => handleFieldBlur("date")}
+              error={errors.date}
             />
 
             <div className="space-y-2">
               <Label htmlFor="notes">Notes (optional)</Label>
-              <Textarea
-                id="notes"
-                placeholder="What did you practice? Any breakthroughs or challenges?"
-                value={logForm.notes}
-                onChange={(e) =>
-                  setLogForm({ ...logForm, notes: e.target.value })
-                }
-                rows={3}
-              />
+              <div className="relative">
+                <Textarea
+                  id="notes"
+                  placeholder="What did you practice? Any breakthroughs or challenges?"
+                  value={logForm.notes}
+                  onChange={(e) => handleFieldChange("notes", e.target.value)}
+                  onBlur={() => handleFieldBlur("notes")}
+                  className={`${
+                    errors.notes ? "border-red-500 focus:border-red-500" : ""
+                  } pr-16`}
+                  rows={3}
+                />
+                <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+                  {notesCharCount}/{maxNotesLength}
+                </div>
+              </div>
+              {errors.notes && (
+                <div className="flex items-center gap-2 text-sm text-red-500">
+                  <AlertCircle className="size-4" />
+                  <span>{errors.notes}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3">
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/")}
+                onClick={handleCancel}
                 className="flex-1"
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={!logForm.skillId || !logForm.duration}
+                disabled={!isFormValid || isSubmitting}
               >
-                Log Session
+                {isSubmitting ? "Logging..." : "Log Session"}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      <ValidationAlert
+        isVisible={alertMessage}
+        message={alertMessage}
+        type={alertType}
+        onClose={() => setAlertMessage("")}
+      />
     </div>
   );
 };
