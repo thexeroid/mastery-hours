@@ -37,6 +37,9 @@ const SettingsPage = () => {
     showUnsavedDialog,
     fieldErrors,
     exitError,
+    alertMessage,
+    alertType,
+    hasErrors,
     handleDurationChange,
     handleBackClick,
     handleApplyChanges,
@@ -47,6 +50,7 @@ const SettingsPage = () => {
     handleThemeToggle,
     getThemeIcon,
     clearExitError,
+    setAlertMessage,
   } = useSettings();
 
   const getThemeIconComponent = () => {
@@ -181,7 +185,11 @@ const SettingsPage = () => {
           <Button variant="outline" onClick={handleReset} className="flex-1">
             Reset to Defaults
           </Button>
-          <Button onClick={handleSave} className="flex-1">
+          <Button
+            onClick={handleSave}
+            className="flex-1"
+            disabled={hasErrors()}
+          >
             Save Settings
           </Button>
         </div>
@@ -202,6 +210,13 @@ const SettingsPage = () => {
           onClose={() => clearExitError()}
         />
       )}
+
+      <ValidationAlert
+        isVisible={alertMessage}
+        message={alertMessage}
+        type={alertType}
+        onClose={() => setAlertMessage("")}
+      />
     </div>
   );
 };

@@ -1,16 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import {
-  getCurrentDate,
-  formatDate,
-  dateToYYYYMMDD,
-  getUserTimezone,
-} from "@/utils/dateUtils";
+import { getCurrentDate, formatDate } from "@/utils/dateUtils";
 import useLocalStorage from "@/hooks/useLocalStorage";
 import {
   DEFAULT_TARGET_HOURS,
   FALLBACK_DEFAULT_SESSION_DURATION,
   FALLBACK_THEME,
 } from "@/constants/settingsConstants";
+import { addDays, formatDistanceToNow } from "date-fns";
 
 const SkillContext = createContext();
 
@@ -218,12 +214,12 @@ export const SkillProvider = ({ children }) => {
       .map((s) => new Date(s.date))
       .sort((a, b) => a - b);
     const startDate = dates[0];
-    const lastDate = dates[dates.length - 1];
+    const today = new Date();
     const daysPracticed = new Set(skillSessions.map((s) => s.date)).size;
     const avgMinutesPerSession = Math.round(totalMinutes / totalSessions);
 
-    const daysDiff =
-      Math.ceil((lastDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    // Use today's date instead of last session date for more accurate calculations
+    const daysDiff = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24)) + 1;
 
     const sortedDates = skillSessions.map((s) => s.date).sort();
 
@@ -235,36 +231,24 @@ export const SkillProvider = ({ children }) => {
       100
     );
 
-    // Calculate estimated completion date
+    // Calculate estimated completion date using today as the reference point
     let estimatedCompletionDate = null;
     let estimatedTimeText = null;
 
-    if (daysDiff > 0 && parseFloat(totalHours) > 0) {
-      const avgHoursPerDay = parseFloat(totalHours) / daysDiff;
+    if (daysDiff > 0 && parseFloat(totalHours) > 0 && hoursRemaining > 0) {
+      // Calculate average hours per day based on actual practice days, not total days
+      const avgHoursPerDay = parseFloat(totalHours) / daysPracticed;
+
       if (avgHoursPerDay > 0) {
         const daysToTarget = hoursRemaining / avgHoursPerDay;
-        const completionDate = new Date();
-        completionDate.setDate(completionDate.getDate() + daysToTarget);
+        const completionDate = addDays(today, Math.ceil(daysToTarget));
 
         estimatedCompletionDate = completionDate;
 
-        // Convert to human-readable format
-        const months = Math.floor(daysToTarget / 30);
-        const years = Math.floor(months / 12);
-        const remainingMonths = months % 12;
-
-        if (years > 0) {
-          estimatedTimeText = `${years} year${years > 1 ? "s" : ""}${
-            remainingMonths > 0
-              ? `, ${remainingMonths} month${remainingMonths > 1 ? "s" : ""}`
-              : ""
-          }`;
-        } else if (months > 0) {
-          estimatedTimeText = `${months} month${months > 1 ? "s" : ""}`;
-        } else {
-          const days = Math.ceil(daysToTarget);
-          estimatedTimeText = `${days} day${days > 1 ? "s" : ""}`;
-        }
+        // Use date-fns for accurate human-readable time formatting
+        estimatedTimeText = formatDistanceToNow(completionDate, {
+          addSuffix: false,
+        });
       }
     }
 

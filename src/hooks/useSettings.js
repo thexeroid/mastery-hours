@@ -20,6 +20,8 @@ export const useSettings = () => {
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [exitError, setExitError] = useState("");
+  const [alertMessage, setAlertMessage] = useState("");
+  const [alertType, setAlertType] = useState("error");
 
   // Validate form data
   const validateForm = () => {
@@ -66,10 +68,18 @@ export const useSettings = () => {
           [fieldName]: fieldError.message,
         }));
       } else {
-        setFieldErrors((prev) => ({ ...prev, [fieldName]: undefined }));
+        setFieldErrors((prev) => {
+          const newErrors = { ...prev };
+          delete newErrors[fieldName];
+          return newErrors;
+        });
       }
     } else {
-      setFieldErrors((prev) => ({ ...prev, [fieldName]: undefined }));
+      setFieldErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[fieldName];
+        return newErrors;
+      });
     }
   };
 
@@ -93,14 +103,14 @@ export const useSettings = () => {
     return JSON.stringify(localSettings) !== JSON.stringify(settings);
   };
 
+  // Check if form has errors
+  const hasErrors = () => {
+    return Object.keys(fieldErrors).length > 0;
+  };
+
   // Handle navigation attempts
   const handleNavigation = (path) => {
-    if (hasUnsavedChanges()) {
-      // Validate before showing unsaved dialog
-      if (!validateForm()) {
-        setExitError(SETTINGS_ERROR_MESSAGES.FIX_BEFORE_LEAVING);
-        return; // Don't show unsaved dialog if validation fails
-      }
+    if (hasUnsavedChanges() && validateForm()) {
       setShowUnsavedDialog(true);
     } else {
       navigate(path);
@@ -122,7 +132,16 @@ export const useSettings = () => {
     updateSettings(localSettings);
     setShowUnsavedDialog(false);
     setExitError("");
-    navigate("/");
+
+    // Show success message
+    setAlertMessage("Settings applied successfully!");
+    setAlertType("success");
+
+    // Navigate after a delay to show the success message
+    setTimeout(() => {
+      setAlertMessage("");
+      navigate("/");
+    }, 1500);
   };
 
   const handleCloseChanges = () => {
@@ -138,7 +157,16 @@ export const useSettings = () => {
 
     updateSettings(localSettings);
     setExitError("");
-    navigate("/");
+
+    // Show success message
+    setAlertMessage("Settings saved successfully!");
+    setAlertType("success");
+
+    // Navigate after a delay to show the success message
+    setTimeout(() => {
+      setAlertMessage("");
+      navigate("/");
+    }, 1500);
   };
 
   // Handle reset to defaults
@@ -149,6 +177,15 @@ export const useSettings = () => {
     });
     setFieldErrors({});
     setExitError("");
+
+    // Show success message
+    setAlertMessage("Settings reset to defaults!");
+    setAlertType("success");
+
+    // Clear success message after delay
+    setTimeout(() => {
+      setAlertMessage("");
+    }, 1500);
   };
 
   // Handle theme change
@@ -188,6 +225,11 @@ export const useSettings = () => {
     showUnsavedDialog,
     fieldErrors,
     exitError,
+    alertMessage,
+    alertType,
+
+    // Computed values
+    hasErrors,
 
     // Actions
     handleDurationChange,
@@ -200,5 +242,6 @@ export const useSettings = () => {
     handleThemeToggle,
     getThemeIcon,
     clearExitError: () => setExitError(""),
+    setAlertMessage,
   };
 };

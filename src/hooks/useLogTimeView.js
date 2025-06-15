@@ -118,7 +118,7 @@ export const useLogTimeView = ({ skills, onLogSession, defaultDuration }) => {
       // Navigate after a short delay to show the success message
       setTimeout(() => {
         navigate("/");
-      }, 1500);
+      }, 500);
     } catch (error) {
       // Show error alert
       showValidationAlert(
