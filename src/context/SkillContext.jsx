@@ -7,6 +7,9 @@ import {
   FALLBACK_THEME,
 } from "@/constants/settingsConstants";
 import { addDays, formatDistanceToNow } from "date-fns";
+import supabase from "@/supabaseClient";
+import { useAuth } from "@/context/AuthContext";
+import { toCamelCase, toSnakeCase } from "@/utils/caseUtils";
 
 const SkillContext = createContext();
 
@@ -20,37 +23,91 @@ export const useSkillContext = () => {
 
 export const SkillProvider = ({ children }) => {
   const { getItem, setItem } = useLocalStorage();
+  const {
+    user: { id: userId },
+  } = useAuth();
 
-  const [skills, setSkills] = useState(() => {
-    const savedSkills = getItem("skills");
-    return savedSkills || [];
+  // const [skills, setSkills] = useState(() => {
+  //   const savedSkills = getItem("skills");
+  //   return savedSkills || [];
+  // });
+
+  // const [sessions, setSessions] = useState(() => {
+  //   const savedSessions = getItem("sessions");
+  //   return savedSessions || [];
+  // });
+
+  // const [settings, setSettings] = useState(() => {
+  //   const savedSettings = getItem("settings");
+  //   return (
+  //     savedSettings ||
+  // const [settings, setSettings] = useState(() => {
+  //   const savedSettings = getItem("settings");
+  //   return (
+  //     savedSettings || {
+  //       theme: FALLBACK_THEME,
+  //       defaultSessionDuration: FALLBACK_DEFAULT_SESSION_DURATION,
+  //     }
+  //   );
+  // });
+  //   );
+  // });
+
+  const [skills, setSkills] = useState([]);
+  const [sessions, setSessions] = useState([]);
+  const [settings, setSettings] = useState({
+    theme: FALLBACK_THEME,
+    defaultSessionDuration: FALLBACK_DEFAULT_SESSION_DURATION,
   });
 
-  const [sessions, setSessions] = useState(() => {
-    const savedSessions = getItem("sessions");
-    return savedSessions || [];
-  });
+  useEffect(() => {
+    async function fetchSkills() {
+      let { data: skills, error } = await supabase
+        .from("skills")
+        .select("*")
+        .eq("user_id", userId);
 
-  const [settings, setSettings] = useState(() => {
-    const savedSettings = getItem("settings");
-    return (
-      savedSettings || {
-        theme: FALLBACK_THEME,
-        defaultSessionDuration: FALLBACK_DEFAULT_SESSION_DURATION,
-      }
-    );
-  });
+      setSkills(toCamelCase(skills));
+    }
 
-  const addSkill = (skillName) => {
-    const newSkill = {
-      id: Date.now().toString(),
-      name: skillName,
-      createdAt: getCurrentDate(),
-      settings: {
-        defaultSessionDuration: settings.defaultSessionDuration,
-        targetHours: DEFAULT_TARGET_HOURS,
-      },
-    };
+    async function fetchSessions() {
+      let { data: sessions, error } = await supabase
+        .from("sessions")
+        .select("*")
+        .eq("user_id", userId);
+
+      setSessions(toCamelCase(sessions));
+    }
+
+    async function fetchSettings() {
+      let { data: settings, error } = await supabase
+        .from("user_settings")
+        .select("*")
+        .eq("user_id", userId);
+
+      setSettings(toCamelCase(settings?.[0] ?? []));
+    }
+
+    Promise.all([fetchSkills(), fetchSessions(), fetchSettings()])
+      .catch((err) => {})
+      .finally(() => {});
+  }, []);
+
+  const addSkill = async (skillName) => {
+    const { data, error } = await supabase
+      .from("skills")
+      .insert(toSnakeCase({ name: skillName, userId }))
+      .select();
+
+    // const newSkill = {
+    //   id: Date.now().toString(),
+    //   name: skillName,
+    //   createdAt: getCurrentDate(),
+    //   settings: {
+    //     defaultSessionDuration: settings.defaultSessionDuration,
+    //     targetHours: DEFAULT_TARGET_HOURS,
+    //   },
+    // };
     const newSkills = [...skills, newSkill];
     setSkills(newSkills);
     setItem("skills", newSkills);
