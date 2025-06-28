@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useSkillContext } from "./SkillContext";
-import { FALLBACK_THEME } from "@/constants/settingsConstants";
+import { FALLBACK_THEME } from "@/utils/fallbackUtils";
 
 const ThemeContext = createContext();
 

@@ -24,12 +24,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ArrowLeft, CalendarIcon, AlertCircle } from "lucide-react";
-import { FALLBACK_DEFAULT_SESSION_DURATION } from "@/constants/settingsConstants";
+import { FALLBACK_DEFAULT_SESSION_DURATION } from "@/utils/fallbackUtils";
 import ValidationAlert from "./ValidationAlert";
 import { useLogTimeView } from "@/hooks/useLogTimeView";
 import { formatDate, isValidDate, dateToYYYYMMDD } from "@/utils/dateUtils";
+import { CardSpinner } from "@/components/ui/spinner";
 
-const LogSessionDatePicker = ({ value, onChange, error, onBlur }) => {
+const LogSessionDatePicker = ({ value, onChange, error, onBlur, disabled }) => {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(value ? new Date(value) : new Date());
   const [month, setMonth] = useState(date);
@@ -78,6 +79,7 @@ const LogSessionDatePicker = ({ value, onChange, error, onBlur }) => {
               setOpen(true);
             }
           }}
+          disabled={disabled}
         />
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
@@ -85,6 +87,7 @@ const LogSessionDatePicker = ({ value, onChange, error, onBlur }) => {
               id="date-picker"
               variant="ghost"
               className="absolute top-1/2 right-2 size-6 -translate-y-1/2"
+              disabled={disabled}
             >
               <CalendarIcon className="size-3.5" />
               <span className="sr-only">Select date</span>
@@ -117,7 +120,12 @@ const LogSessionDatePicker = ({ value, onChange, error, onBlur }) => {
   );
 };
 
-const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
+const LogTimeView = ({
+  skills,
+  onLogSession,
+  defaultDuration,
+  loadingStates,
+}) => {
   const {
     logForm,
     errors,
@@ -135,6 +143,26 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
     handleCancel,
     setAlertMessage,
   } = useLogTimeView({ skills, onLogSession, defaultDuration });
+
+  // Show loading spinner while skills are being loaded
+  if (loadingStates?.skills) {
+    return (
+      <div className="container mx-auto py-8 px-4 max-w-md">
+        <div className="flex items-center gap-3 mb-6">
+          <Button variant="ghost" size="sm" onClick={handleCancel}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold">Log Practice Time</h2>
+            <p className="text-muted-foreground">
+              Record your practice session
+            </p>
+          </div>
+        </div>
+        <CardSpinner text="Loading skills..." />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-md">
@@ -167,6 +195,7 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
                 onOpenChange={(open) => {
                   if (!open) handleFieldBlur("skillId");
                 }}
+                disabled={isSubmitting}
               >
                 <SelectTrigger
                   className={`w-full ${
@@ -205,6 +234,7 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
                 }
                 min="5"
                 max="1440"
+                disabled={isSubmitting}
               />
               {errors.duration && (
                 <div className="flex items-center gap-2 text-sm text-red-500">
@@ -219,6 +249,7 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
               onChange={(date) => handleFieldChange("date", date)}
               onBlur={() => handleFieldBlur("date")}
               error={errors.date}
+              disabled={isSubmitting}
             />
 
             <div className="space-y-2">
@@ -234,6 +265,7 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
                     errors.notes ? "border-red-500 focus:border-red-500" : ""
                   } pr-16`}
                   rows={3}
+                  disabled={isSubmitting}
                 />
                 <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
                   {notesCharCount}/{maxNotesLength}
@@ -261,6 +293,7 @@ const LogTimeView = ({ skills, onLogSession, defaultDuration }) => {
                 type="submit"
                 className="flex-1"
                 disabled={!isFormValid || isSubmitting}
+                loading={isSubmitting}
               >
                 {isSubmitting ? "Logging..." : "Log Session"}
               </Button>

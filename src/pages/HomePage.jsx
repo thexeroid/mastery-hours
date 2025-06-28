@@ -5,7 +5,8 @@ import HomeView from "../components/HomeView";
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const { skills, sessions, deleteSkill, getSkillMetrics } = useSkillContext();
+  const { skills, sessions, deleteSkill, getSkillMetrics, loadingStates } =
+    useSkillContext();
 
   const handleLogTime = (skillId) => {
     navigate(`/log-time/${skillId}`);
@@ -23,6 +24,7 @@ const HomePage = () => {
       onLogTime={handleLogTime}
       onViewProgress={handleViewProgress}
       getSkillMetrics={getSkillMetrics}
+      loadingStates={loadingStates}
     />
   );
 };

@@ -3,7 +3,7 @@ import { useSkillContext } from "../context/SkillContext";
 import SkillProgressView from "../components/SkillProgressView";
 
 const SkillProgressPage = () => {
-  const { skills, sessions, getSkillMetrics, getDailyHours } =
+  const { skills, sessions, getSkillMetrics, getDailyHours, loadingStates } =
     useSkillContext();
 
   return (
@@ -12,6 +12,7 @@ const SkillProgressPage = () => {
       sessions={sessions}
       getSkillMetrics={getSkillMetrics}
       getDailyHours={getDailyHours}
+      loadingStates={loadingStates}
     />
   );
 };

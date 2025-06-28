@@ -30,20 +30,24 @@ import {
 import UnsavedChangesDialog from "../components/UnsavedChangesDialog";
 import ValidationAlert from "../components/ValidationAlert";
 import { useSettings } from "@/hooks/useSettings";
+import { CardSpinner } from "@/components/ui/spinner";
+import { useSkillContext } from "@/context/SkillContext";
 
-const SettingsPage = () => {
+const SettingsPage = ({ loadingStates }) => {
   const {
-    localSettings,
+    currentSettings,
     showUnsavedDialog,
     fieldErrors,
     exitError,
     alertMessage,
     alertType,
     hasErrors,
+    isSaving,
     handleDurationChange,
     handleBackClick,
     handleApplyChanges,
     handleCloseChanges,
+    handleCancelChanges,
     handleSave,
     handleReset,
     handleThemeChange,
@@ -65,6 +69,24 @@ const SettingsPage = () => {
         return <Sun className="w-4 h-4" />;
     }
   };
+
+  // Show loading spinner while settings are being loaded
+  if (loadingStates?.settings) {
+    return (
+      <div className="container mx-auto py-8 px-4 max-w-2xl">
+        <div className="flex items-center gap-3 mb-6">
+          <Button variant="ghost" size="sm" onClick={handleBackClick}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h2 className="text-2xl font-bold">Settings</h2>
+            <p className="text-muted-foreground">Customize your experience</p>
+          </div>
+        </div>
+        <CardSpinner text="Loading settings..." />
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-2xl">
@@ -101,7 +123,7 @@ const SettingsPage = () => {
                 min="5"
                 max="1440"
                 step="5"
-                value={String(localSettings.defaultSessionDuration)}
+                value={String(currentSettings.defaultSessionDuration)}
                 onChange={handleDurationChange}
                 className={
                   fieldErrors.defaultSessionDuration
@@ -137,7 +159,7 @@ const SettingsPage = () => {
               <Label htmlFor="theme">Theme</Label>
               <div className="flex gap-2">
                 <Select
-                  value={localSettings.theme}
+                  value={currentSettings.theme}
                   onValueChange={handleThemeChange}
                 >
                   <SelectTrigger className="flex-1">
@@ -189,8 +211,9 @@ const SettingsPage = () => {
             onClick={handleSave}
             className="flex-1"
             disabled={hasErrors()}
+            loading={isSaving}
           >
-            Save Settings
+            {isSaving ? "Saving..." : "Save Settings"}
           </Button>
         </div>
       </div>
@@ -200,6 +223,7 @@ const SettingsPage = () => {
           isOpen={showUnsavedDialog}
           onApply={handleApplyChanges}
           onClose={handleCloseChanges}
+          onCancel={handleCancelChanges}
         />
       )}
 
@@ -221,4 +245,10 @@ const SettingsPage = () => {
   );
 };
 
-export default SettingsPage;
+// Wrapper component for the route
+const SettingsPageWrapper = () => {
+  const { loadingStates } = useSkillContext();
+  return <SettingsPage loadingStates={loadingStates} />;
+};
+
+export default SettingsPageWrapper;

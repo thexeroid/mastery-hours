@@ -14,15 +14,23 @@ import { useNavigate } from "react-router-dom";
 
 const AddSkillView = ({ onAddSkill }) => {
   const [newSkillName, setNewSkillName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newSkillName.trim()) return;
 
-    onAddSkill(newSkillName);
-    setNewSkillName("");
-    navigate("/");
+    setIsSubmitting(true);
+    try {
+      await onAddSkill(newSkillName);
+      setNewSkillName("");
+      navigate("/");
+    } catch (error) {
+      console.error("Failed to add skill:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -56,6 +64,7 @@ const AddSkillView = ({ onAddSkill }) => {
                 value={newSkillName}
                 onChange={(e) => setNewSkillName(e.target.value)}
                 autoFocus
+                disabled={isSubmitting}
               />
             </div>
             <div className="flex gap-3">
@@ -64,15 +73,17 @@ const AddSkillView = ({ onAddSkill }) => {
                 variant="outline"
                 onClick={() => navigate("/")}
                 className="flex-1"
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 className="flex-1"
-                disabled={!newSkillName.trim()}
+                disabled={!newSkillName.trim() || isSubmitting}
+                loading={isSubmitting}
               >
-                Add Skill
+                {isSubmitting ? "Adding..." : "Add Skill"}
               </Button>
             </div>
           </form>

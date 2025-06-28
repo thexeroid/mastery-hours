@@ -14,9 +14,10 @@ import { Settings, Target, Clock } from "lucide-react";
 import {
   DEFAULT_TARGET_HOURS,
   FALLBACK_DEFAULT_SESSION_DURATION,
-} from "@/constants/settingsConstants";
+  withFallback,
+} from "@/utils/fallbackUtils";
 import { validateSkillSettingsForm } from "@/schemas/skillSettingsSchema";
-import ValidationAlert from "./ValidationAlert";
+import { useSettings } from "@/hooks/useSettings";
 
 const SkillSettingsDialog = ({
   isOpen,
@@ -25,34 +26,42 @@ const SkillSettingsDialog = ({
   skill,
   currentSettings,
 }) => {
-  const [settings, setSettings] = useState({
-    defaultSessionDuration:
-      currentSettings?.defaultSessionDuration?.toString() ||
-      FALLBACK_DEFAULT_SESSION_DURATION.toString(),
-    targetHours:
-      currentSettings?.targetHours?.toString() ||
-      DEFAULT_TARGET_HOURS.toString(),
+  const [inputValues, setInputValues] = useState({
+    defaultSessionDuration: FALLBACK_DEFAULT_SESSION_DURATION.toString(),
+    targetHours: DEFAULT_TARGET_HOURS.toString(),
   });
 
+  const { currentSettings: settings } = useSettings();
   const [fieldErrors, setFieldErrors] = useState({});
+  const [isSaving, setIsSaving] = useState(false);
 
-  // Update settings when currentSettings changes (when dialog opens with different skill)
+  // Update inputValues when dialog opens or currentSettings changes
   useEffect(() => {
-    setSettings({
-      defaultSessionDuration:
-        currentSettings?.defaultSessionDuration?.toString() ||
-        FALLBACK_DEFAULT_SESSION_DURATION.toString(),
-      targetHours:
-        currentSettings?.targetHours?.toString() ||
-        DEFAULT_TARGET_HOURS.toString(),
-    });
-    // Clear errors when settings change
-    setFieldErrors({});
-  }, [currentSettings]);
+    if (isOpen) {
+      const defaultDuration = withFallback(
+        currentSettings?.defaultSessionDuration ||
+          settings?.defaultSessionDuration,
+        "defaultSessionDuration"
+      );
+      const targetHours = withFallback(
+        currentSettings?.targetHours,
+        "targetHours"
+      );
+
+      setInputValues({
+        defaultSessionDuration: defaultDuration.toString(),
+        targetHours: targetHours.toString(),
+      });
+
+      // Clear errors when dialog opens
+      setFieldErrors({});
+      setIsSaving(false);
+    }
+  }, [isOpen, currentSettings, settings]);
 
   // Validate form data
   const validateForm = () => {
-    const result = validateSkillSettingsForm(settings);
+    const result = validateSkillSettingsForm(inputValues);
 
     if (!result.success) {
       const errors = {};
@@ -70,7 +79,7 @@ const SkillSettingsDialog = ({
 
   // Real-time validation on input change
   const validateField = (fieldName, value) => {
-    const fieldSettings = { ...settings, [fieldName]: value };
+    const fieldSettings = { ...inputValues, [fieldName]: value };
     const result = validateSkillSettingsForm(fieldSettings);
 
     if (!result.success) {
@@ -90,24 +99,29 @@ const SkillSettingsDialog = ({
     }
   };
 
-  console.log({ currentSettings, settings });
-
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validateForm()) {
       return;
     }
 
-    onSave({
-      defaultSessionDuration:
-        parseInt(settings.defaultSessionDuration) ||
-        FALLBACK_DEFAULT_SESSION_DURATION,
-      targetHours: parseInt(settings.targetHours) || DEFAULT_TARGET_HOURS,
-    });
-    onClose();
+    setIsSaving(true);
+    try {
+      await onSave({
+        defaultSessionDuration:
+          parseInt(inputValues.defaultSessionDuration) ||
+          FALLBACK_DEFAULT_SESSION_DURATION,
+        targetHours: parseInt(inputValues.targetHours) || DEFAULT_TARGET_HOURS,
+      });
+      onClose();
+    } catch (error) {
+      console.error("Failed to save skill settings:", error);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleReset = () => {
-    setSettings({
+    setInputValues({
       defaultSessionDuration: FALLBACK_DEFAULT_SESSION_DURATION.toString(),
       targetHours: DEFAULT_TARGET_HOURS.toString(),
     });
@@ -139,11 +153,11 @@ const SkillSettingsDialog = ({
             <Input
               id="defaultDuration"
               type="number"
-              value={settings.defaultSessionDuration}
+              value={inputValues.defaultSessionDuration}
               onChange={(e) => {
                 const value = e.target.value;
-                setSettings({
-                  ...settings,
+                setInputValues({
+                  ...inputValues,
                   defaultSessionDuration: value,
                 });
                 validateField("defaultSessionDuration", value);
@@ -154,6 +168,7 @@ const SkillSettingsDialog = ({
               className={
                 fieldErrors.defaultSessionDuration ? "border-destructive" : ""
               }
+              disabled={isSaving}
             />
             {fieldErrors.defaultSessionDuration && (
               <p className="text-sm text-destructive">
@@ -173,11 +188,11 @@ const SkillSettingsDialog = ({
             <Input
               id="targetHours"
               type="number"
-              value={settings.targetHours}
+              value={inputValues.targetHours}
               onChange={(e) => {
                 const value = e.target.value;
-                setSettings({
-                  ...settings,
+                setInputValues({
+                  ...inputValues,
                   targetHours: value,
                 });
                 validateField("targetHours", value);
@@ -186,6 +201,7 @@ const SkillSettingsDialog = ({
               max="10000"
               placeholder={DEFAULT_TARGET_HOURS}
               className={fieldErrors.targetHours ? "border-destructive" : ""}
+              disabled={isSaving}
             />
             {fieldErrors.targetHours && (
               <p className="text-sm text-destructive">
@@ -199,14 +215,16 @@ const SkillSettingsDialog = ({
         </div>
 
         <DialogFooter className="flex gap-2 sm:justify-between">
-          <Button variant="outline" onClick={handleReset}>
+          <Button variant="outline" onClick={handleReset} disabled={isSaving}>
             Reset to Defaults
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>
+            <Button variant="outline" onClick={onClose} disabled={isSaving}>
               Cancel
             </Button>
-            <Button onClick={handleSave}>Save Settings</Button>
+            <Button onClick={handleSave} loading={isSaving}>
+              {isSaving ? "Saving..." : "Save Settings"}
+            </Button>
           </div>
         </DialogFooter>
       </DialogContent>

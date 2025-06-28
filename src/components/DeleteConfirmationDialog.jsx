@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -20,9 +20,23 @@ const DeleteConfirmationDialog = ({
   confirmText = "Delete",
   cancelText = "Cancel",
 }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const defaultDescription = skillName
     ? `Are you sure you want to delete "${skillName}"? This action cannot be undone and will also delete all associated practice sessions.`
     : "Are you sure you want to delete this skill? This action cannot be undone and will also delete all associated practice sessions.";
+
+  const handleConfirm = async () => {
+    setIsDeleting(true);
+    try {
+      await onConfirm();
+      onClose();
+    } catch (error) {
+      console.error("Failed to delete skill:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -37,17 +51,15 @@ const DeleteConfirmationDialog = ({
           </DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex gap-2 sm:justify-end">
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={isDeleting}>
             {cancelText}
           </Button>
           <Button
             variant="destructive"
-            onClick={() => {
-              onConfirm();
-              onClose();
-            }}
+            onClick={handleConfirm}
+            loading={isDeleting}
           >
-            {confirmText}
+            {isDeleting ? "Deleting..." : confirmText}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -18,16 +18,17 @@ import {
   Plus,
 } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useSkillContext } from "@/context/SkillContext";
 import MilestoneHUD from "./MilestoneHUD";
+import { withFallback } from "@/utils/fallbackUtils";
+import { CardSpinner } from "@/components/ui/spinner";
 
 const SkillProgressView = ({
   skills,
   sessions,
   getSkillMetrics,
   getDailyHours,
+  loadingStates,
 }) => {
-  const { settings } = useSkillContext();
   const { skillId } = useParams();
   const navigate = useNavigate();
 
@@ -36,6 +37,27 @@ const SkillProgressView = ({
   const dailyHours = getDailyHours(skillId);
 
   const skillSessions = sessions.filter((s) => s.skillId === selectedSkill?.id);
+  console.log({ selectedSkill, metrics, dailyHours, skillSessions });
+
+  // Show loading spinner while skills or sessions are being loaded
+  if (loadingStates?.skills || loadingStates?.sessions) {
+    return (
+      <div className="container mx-auto py-8 px-4 max-w-6xl">
+        <div className="flex items-center gap-3 mb-6">
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/`)}>
+            <ArrowLeft className="w-4 h-4" />
+          </Button>
+          <div>
+            <h2 className="text-3xl font-bold">Skill Progress</h2>
+            <p className="text-muted-foreground">
+              Your deliberate practice journey
+            </p>
+          </div>
+        </div>
+        <CardSpinner text="Loading skill data..." />
+      </div>
+    );
+  }
 
   if (!selectedSkill) {
     return (
@@ -191,8 +213,10 @@ const SkillProgressView = ({
                       <Progress
                         value={Math.min(
                           (parseFloat(day.hours) /
-                            (selectedSkill.settings.defaultSessionDuration /
-                              60)) *
+                            withFallback(
+                              selectedSkill.settings?.defaultSessionDuration,
+                              "defaultSessionDuration"
+                            )) *
                             100,
                           100
                         )}

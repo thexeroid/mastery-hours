@@ -1,15 +1,15 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { getCurrentDate, formatDate } from "@/utils/dateUtils";
 import useLocalStorage from "@/hooks/useLocalStorage";
-import {
-  DEFAULT_TARGET_HOURS,
-  FALLBACK_DEFAULT_SESSION_DURATION,
-  FALLBACK_THEME,
-} from "@/constants/settingsConstants";
-import { addDays, formatDistanceToNow } from "date-fns";
+import { withFallback } from "@/utils/fallbackUtils";
+import { addDays, formatDistanceToNow, differenceInDays } from "date-fns";
 import supabase from "@/supabaseClient";
 import { useAuth } from "@/context/AuthContext";
 import { toCamelCase, toSnakeCase } from "@/utils/caseUtils";
+import {
+  transformSkillsToClient,
+  transformSkillToClient,
+} from "@/transformers/skillTransformers";
 
 const SkillContext = createContext();
 
@@ -22,76 +22,90 @@ export const useSkillContext = () => {
 };
 
 export const SkillProvider = ({ children }) => {
-  const { getItem, setItem } = useLocalStorage();
   const {
     user: { id: userId },
   } = useAuth();
 
-  // const [skills, setSkills] = useState(() => {
-  //   const savedSkills = getItem("skills");
-  //   return savedSkills || [];
-  // });
-
-  // const [sessions, setSessions] = useState(() => {
-  //   const savedSessions = getItem("sessions");
-  //   return savedSessions || [];
-  // });
-
-  // const [settings, setSettings] = useState(() => {
-  //   const savedSettings = getItem("settings");
-  //   return (
-  //     savedSettings ||
-  // const [settings, setSettings] = useState(() => {
-  //   const savedSettings = getItem("settings");
-  //   return (
-  //     savedSettings || {
-  //       theme: FALLBACK_THEME,
-  //       defaultSessionDuration: FALLBACK_DEFAULT_SESSION_DURATION,
-  //     }
-  //   );
-  // });
-  //   );
-  // });
-
   const [skills, setSkills] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [settings, setSettings] = useState({
-    theme: FALLBACK_THEME,
-    defaultSessionDuration: FALLBACK_DEFAULT_SESSION_DURATION,
+    theme: withFallback(null, "theme"),
+    defaultSessionDuration: withFallback(null, "defaultSessionDuration"),
   });
+
+  // Loading states
+  const [loadingStates, setLoadingStates] = useState({
+    skills: true,
+    sessions: true,
+    settings: true,
+  });
+
+  // Check if all data is loaded
+  const isDataLoaded =
+    !loadingStates.skills && !loadingStates.sessions && !loadingStates.settings;
 
   useEffect(() => {
     async function fetchSkills() {
-      let { data: skills, error } = await supabase
-        .from("skills")
-        .select("*")
-        .eq("user_id", userId);
+      try {
+        setLoadingStates((prev) => ({ ...prev, skills: true }));
+        let { data: skills, error } = await supabase
+          .from("skills")
+          .select("*")
+          .eq("user_id", userId);
 
-      setSkills(toCamelCase(skills));
+        if (error) throw error;
+        setSkills(transformSkillsToClient(skills));
+      } catch (error) {
+        console.error("Error fetching skills:", error);
+      } finally {
+        setLoadingStates((prev) => ({ ...prev, skills: false }));
+      }
     }
 
+    fetchSkills();
+  }, [userId]);
+
+  useEffect(() => {
     async function fetchSessions() {
-      let { data: sessions, error } = await supabase
-        .from("sessions")
-        .select("*")
-        .eq("user_id", userId);
+      try {
+        setLoadingStates((prev) => ({ ...prev, sessions: true }));
+        let { data: sessions, error } = await supabase
+          .from("sessions")
+          .select("*")
+          .eq("user_id", userId);
 
-      setSessions(toCamelCase(sessions));
+        if (error) throw error;
+        setSessions(toCamelCase(sessions));
+      } catch (error) {
+        console.error("Error fetching sessions:", error);
+      } finally {
+        setLoadingStates((prev) => ({ ...prev, sessions: false }));
+      }
     }
 
+    fetchSessions();
+  }, [userId]);
+
+  useEffect(() => {
     async function fetchSettings() {
-      let { data: settings, error } = await supabase
-        .from("user_settings")
-        .select("*")
-        .eq("user_id", userId);
+      try {
+        setLoadingStates((prev) => ({ ...prev, settings: true }));
+        let { data: settings, error } = await supabase
+          .from("settings")
+          .select("*")
+          .eq("user_id", userId);
 
-      setSettings(toCamelCase(settings?.[0] ?? []));
+        if (error) throw error;
+        setSettings(toCamelCase(settings?.[0] ?? []));
+      } catch (error) {
+        console.error("Error fetching settings:", error);
+      } finally {
+        setLoadingStates((prev) => ({ ...prev, settings: false }));
+      }
     }
 
-    Promise.all([fetchSkills(), fetchSessions(), fetchSettings()])
-      .catch((err) => {})
-      .finally(() => {});
-  }, []);
+    fetchSettings();
+  }, [userId]);
 
   const addSkill = async (skillName) => {
     const { data, error } = await supabase
@@ -99,63 +113,73 @@ export const SkillProvider = ({ children }) => {
       .insert(toSnakeCase({ name: skillName, userId }))
       .select();
 
-    // const newSkill = {
-    //   id: Date.now().toString(),
-    //   name: skillName,
-    //   createdAt: getCurrentDate(),
-    //   settings: {
-    //     defaultSessionDuration: settings.defaultSessionDuration,
-    //     targetHours: DEFAULT_TARGET_HOURS,
-    //   },
-    // };
-    const newSkills = [...skills, newSkill];
-    setSkills(newSkills);
-    setItem("skills", newSkills);
+    if (!error) {
+      const newSkills = [...skills, transformSkillToClient(data[0])];
+      setSkills(newSkills);
+    }
   };
 
-  const deleteSkill = (skillId) => {
+  const deleteSkill = async (skillId) => {
     const newSkills = skills.filter((s) => s.id !== skillId);
     const newSessions = sessions.filter((s) => s.skillId !== skillId);
 
-    setSkills(newSkills);
-    setItem("skills", newSkills);
-    setSessions(newSessions);
-    setItem("sessions", newSessions);
+    const { error } = await supabase.from("skills").delete().eq("id", skillId);
+
+    if (!error) {
+      setSkills(newSkills);
+      setSessions(newSessions);
+    }
   };
 
-  const logSession = (logForm) => {
-    const newSession = {
-      id: Date.now().toString(),
-      skillId: logForm.skillId,
-      duration: parseInt(logForm.duration),
-      date: logForm.date,
-      notes: logForm.notes,
-    };
+  const updateSkillSettings = async (skillId, newSettings) => {
+    const { defaultSessionDuration, targetHours } = newSettings;
+    const { data, error } = await supabase
+      .from("skills")
+      .update(toSnakeCase({ defaultSessionDuration, targetHours }))
+      .eq("id", skillId)
+      .select();
 
-    const newSessions = [...sessions, newSession];
-    setSessions(newSessions);
-    setItem("sessions", newSessions);
+    if (!error) {
+      const updatedSkills = skills.map((skill) =>
+        skill.id === skillId ? transformSkillToClient(data[0]) : skill
+      );
+
+      setSkills(updatedSkills);
+    }
   };
 
-  const updateSettings = (newSettings) => {
-    setSettings(newSettings);
-    setItem("settings", newSettings);
+  const logSession = async (logForm) => {
+    const { skillId, duration, date, notes } = logForm;
+
+    const { data, error } = await supabase
+      .from("sessions")
+      .insert(
+        toSnakeCase({
+          skillId,
+          userId,
+          duration,
+          date,
+          notes,
+        })
+      )
+      .select();
+
+    if (!error) {
+      const newSessions = [...sessions, toCamelCase(data[0])];
+      setSessions(newSessions);
+    }
   };
 
-  const updateSkillSettings = (skillId, newSettings) => {
-    const updatedSkills = skills.map((skill) =>
-      skill.id === skillId
-        ? {
-            ...skill,
-            settings: {
-              ...skill.settings,
-              ...newSettings,
-            },
-          }
-        : skill
-    );
-    setSkills(updatedSkills);
-    setItem("skills", updatedSkills);
+  const updateSettings = async (newSettings) => {
+    const { data, error } = await supabase
+      .from("settings")
+      .update(toSnakeCase(newSettings))
+      .eq("user_id", userId)
+      .select();
+
+    if (!error) {
+      setSettings(toCamelCase(data[0]));
+    }
   };
 
   const getSkillMetrics = (skillId) => {
@@ -163,7 +187,10 @@ export const SkillProvider = ({ children }) => {
     if (skillSessions.length === 0) return null;
 
     const skill = skills.find((s) => s.id === skillId);
-    const targetHours = skill?.settings?.targetHours || 1000;
+    const targetHours = withFallback(
+      skill?.settings?.targetHours,
+      "targetHours"
+    );
 
     const totalMinutes = skillSessions.reduce((sum, s) => sum + s.duration, 0);
     const totalHours = (totalMinutes / 60).toFixed(1);
@@ -177,7 +204,7 @@ export const SkillProvider = ({ children }) => {
     const avgMinutesPerSession = Math.round(totalMinutes / totalSessions);
 
     // Use today's date instead of last session date for more accurate calculations
-    const daysDiff = Math.ceil((today - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    const daysDiff = differenceInDays(today, startDate) + 1;
 
     const sortedDates = skillSessions.map((s) => s.date).sort();
 
@@ -254,6 +281,8 @@ export const SkillProvider = ({ children }) => {
     skills,
     sessions,
     settings,
+    loadingStates,
+    isDataLoaded,
     addSkill,
     deleteSkill,
     logSession,
